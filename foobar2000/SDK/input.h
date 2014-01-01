@@ -1,9 +1,12 @@
+PFC_DECLARE_EXCEPTION(exception_tagging_unsupported, exception_io_data, "Tagging of this file format is not supported")
+
 enum {
 	input_flag_no_seeking					= 1 << 0,
 	input_flag_no_looping					= 1 << 1,
 	input_flag_playback						= 1 << 2,
 	input_flag_testing_integrity			= 1 << 3,
 	input_flag_allow_inaccurate_seeking		= 1 << 4,
+	input_flag_no_postproc					= 1 << 5,
 
 	input_flag_simpledecode = input_flag_no_seeking|input_flag_no_looping,
 };
@@ -102,6 +105,15 @@ public:
 	//! OPTIONAL, the call is ignored if this implementation doesn't support status logging. \n
 	//! Mainly used to generate logs when ripping CDs etc.
 	virtual void set_logger(event_logger::ptr ptr) = 0;
+};
+
+class NOVTABLE input_decoder_v3 : public input_decoder_v2 {
+	FB2K_MAKE_SERVICE_INTERFACE(input_decoder_v3, input_decoder_v2);
+public:
+	//! OPTIONAL, in case your input cares about paused/unpaused state, handle this to do any necessary additional processing. Valid only after initialize() with input_flag_playback.
+	virtual void set_pause(bool paused) = 0;
+	//! OPTIONAL, should return false in most cases; return true to force playback buffer flush on unpause. Valid only after initialize() with input_flag_playback.
+	virtual bool flush_on_pause() = 0;
 };
 
 //! Class providing interface for writing metadata and replaygain info to files. Also see: file_info. \n

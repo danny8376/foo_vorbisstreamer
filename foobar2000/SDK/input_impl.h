@@ -61,6 +61,12 @@ public:
 	//! See: input_entry::is_our_path().
 	static bool g_is_our_path(const char * p_path,const char * p_extension);
 
+
+	//! See: input_decoder_v2::run_raw(). Relevant only when implementing input_decoder_v2. Valid after decode_initialize().
+	bool decode_run_raw(audio_chunk & p_chunk, mem_block_container & p_raw, abort_callback & p_abort);
+
+	//! See: input_decoder::set_logger(). Relevant only when implementing input_decoder_v2. Valid after any open().
+	void set_logger(event_logger::ptr ptr);
 protected:
 	input_impl() {}
 	~input_impl() {}
@@ -183,6 +189,14 @@ public:
 		m_instance.set_logger(ptr);
 	}
 
+	void set_pause(bool paused) {
+		m_instance.set_pause(paused);
+	}
+	bool flush_on_pause() {
+		return m_instance.flush_on_pause();
+	}
+
+
 	// input_info_writer methods
 
 	void set_info(t_uint32 p_subsong,const file_info & p_info,abort_callback & p_abort) {
@@ -248,6 +262,13 @@ public:
 	}
 
 	void set_logger(event_logger::ptr ptr) {m_instance.set_logger(ptr);}
+
+	void set_pause(bool paused) {
+		m_instance.set_pause(paused);
+	}
+	bool flush_on_pause() {
+		return m_instance.flush_on_pause();
+	}
 
 	void retag_commit(abort_callback & p_abort) {}
 

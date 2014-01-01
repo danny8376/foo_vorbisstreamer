@@ -23,7 +23,7 @@ public:
 		load_info_errors,		
 	};
 
-	//! No longer use - returns false always.
+	//! No longer used - returns false always.
 	__declspec(deprecated) virtual bool is_busy() = 0;
 	//! No longer used - returns false always.
 	__declspec(deprecated) virtual bool is_updating_disabled() = 0;
@@ -88,6 +88,13 @@ public:
 	virtual void on_done() = 0;
 
 	FB2K_MAKE_SERVICE_INTERFACE(metadb_hint_list,service_base);
+};
+//! \since 1.0
+class NOVTABLE metadb_hint_list_v2 : public metadb_hint_list {
+public:
+	virtual void add_hint_browse(metadb_handle_ptr const & p_location,const file_info & p_info, t_filetimestamp browseTS) = 0;
+
+	FB2K_MAKE_SERVICE_INTERFACE(metadb_hint_list_v2, metadb_hint_list);
 };
 
 //! New in 0.9.3. Extends metadb_io functionality with nonblocking versions of tag read/write functions, and some other utility features.
@@ -175,6 +182,17 @@ public:
 	FB2K_MAKE_SERVICE_INTERFACE_ENTRYPOINT(metadb_io_callback);
 };
 
+//! \since 1.1
+//! Callback service receiving notifications about user-triggered tag edits. \n
+//! You want to use metadb_io_callback instead most of the time, unless you specifically want to track tag edits for purposes other than updating user interface.
+class NOVTABLE metadb_io_edit_callback : public service_base {
+	FB2K_MAKE_SERVICE_INTERFACE_ENTRYPOINT(metadb_io_edit_callback)
+public:
+	//! Called after the user has edited tags on a set of files.
+	typedef const pfc::list_base_const_t<const file_info*> & t_infosref;
+	virtual void on_edited(metadb_handle_list_cref items, t_infosref before, t_infosref after) = 0;
+};
+
 //! Entrypoint service for metadb_handle related operations.\n
 //! Implemented only by core, do not reimplement.\n
 //! Use static_api_ptr_t template to access it, e.g. static_api_ptr_t<metadb>()->handle_create(myhandle,mylocation);
@@ -248,10 +266,11 @@ class titleformat_hook_function_params;
 
 /*!
 	Implementing this service lets you provide your own title-formatting fields that are parsed globally with each call to metadb_handle::format_title methods. \n
+	Note that this API is meant to allow you to add your own component-specific fields - not to overlay your data over standard fields or over fields provided by other components. Any attempts to interfere with standard fields will have severe ill effects. \n
 	This should be implemented only where absolutely necessary, for safety and performance reasons. Any expensive operations inside the process_field() method may severely damage performance of affected title-formatting calls. \n
 	You must NEVER make any other foobar2000 API calls from inside process_field, other than possibly querying information from the passed metadb_handle pointer; you should read your own implementation-specific private data and return as soon as possible. You must not make any assumptions about calling context (threading etc). \n
 	It is guaranteed that process_field() is called only inside a metadb lock scope so you can safely call "locked" metadb_handle methods on the metadb_handle pointer you get. You must not lock metadb by yourself inside process_field() - while it is always called from inside a metadb lock scope, it may be called from another thread than the one maintaining the lock because of multi-CPU optimizations active. \n
-	If there are multiple metadb_display_field_provider services registered providing fields of the same name, which one gets called is undefined. \n
+	If there are multiple metadb_display_field_provider services registered providing fields of the same name, the behavior is undefined. You must pick unique names for provided fields to ensure safe coexistence with other people's components. \n
 	IMPORTANT: Any components implementing metadb_display_field_provider MUST call metadb_io::dispatch_refresh() with affected metadb_handles whenever info that they present changes. Otherwise, anything rendering title-formatting strings that reference your data will not update properly, resulting in unreliable/broken output, repaint glitches, etc. \n
 	Do not expect a process_field() call each time somebody uses title formatting, calling code might perform its own caching of strings that you return, getting new ones only after metadb_io::dispatch_refresh() with relevant items. \n
 	If you can't reliably notify other components about changes of content of fields that you provide (such as when your fields provide some kind of global information and not information specific to item identified by passed metadb_handle), you should not be providing those fields in first place. You must not change returned values of your fields without dispatching appropriate notifications. \n
@@ -310,3 +329,74 @@ private:
 	pfc::array_t<file_info_impl> m_infos;
 };
 
+
+//! \since 1.1
+// typedef hasher_md5_result metadb_index_hash;
+typedef t_uint64 metadb_index_hash;
+
+
+//! \since 1.1
+class NOVTABLE metadb_index_client : public service_base {
+	FB2K_MAKE_SERVICE_INTERFACE(metadb_index_client, service_base)
+public:
+	virtual metadb_index_hash transform(const file_info & info, const playable_location & location) = 0;
+
+	bool hashHandleLocked(metadb_handle_ptr const & h, metadb_index_hash & out) {
+		const file_info * i;
+		if (!h->get_info_locked(i)) return false;
+		out = transform(*i, h->get_location());
+		return true;
+	}
+
+	static metadb_index_hash from_md5(hasher_md5_result const & in) {return in.xorHalve();}
+};
+
+//! \since 1.1
+class NOVTABLE metadb_index_manager : public service_base {
+	FB2K_MAKE_SERVICE_INTERFACE_ENTRYPOINT(metadb_index_manager)
+public:
+	virtual void add(metadb_index_client::ptr client, const GUID & index_id, t_filetimestamp userDataRetentionPeriod) = 0;
+	virtual void remove(const GUID & index_id) = 0;
+	virtual void set_user_data(const GUID & index_id, const metadb_index_hash & hash, const void * data, t_size dataSize) = 0;
+	virtual void get_user_data(const GUID & index_id, const metadb_index_hash & hash, mem_block_container & out) = 0;
+
+
+	template<typename t_array> void get_user_data_t(const GUID & index_id, const metadb_index_hash & hash, t_array & out) {
+		mem_block_container_ref_impl<t_array> ref(out);
+		get_user_data(index_id, hash, ref);
+	}
+
+	t_size get_user_data_here(const GUID & index_id, const metadb_index_hash & hash, void * out, t_size outSize) {
+		mem_block_container_temp_impl ref(out, outSize);
+		get_user_data(index_id, hash, ref);
+		return ref.get_size();
+	}
+
+	virtual void dispatch_refresh(const GUID & index_id, const pfc::list_base_const_t<metadb_index_hash> & hashes) = 0;
+	
+	void dispatch_refresh(const GUID & index_id, const metadb_index_hash & hash) {
+		pfc::list_single_ref_t<metadb_index_hash> l(hash);
+		dispatch_refresh(index_id, l);
+	}
+
+	virtual void dispatch_global_refresh() = 0;
+
+	//! Efficiently retrieves metadb_handles of items present in the Media Library matching the specified index value. \n
+	//! This can be called from the app main thread only (interfaces with the library_manager API).
+	virtual void get_ML_handles(const GUID & index_id, const metadb_index_hash & hash, metadb_handle_list_ref out) = 0;
+
+	//! Retrieves all known hash values for this index.
+	virtual void get_all_hashes(const GUID & index_id, pfc::list_base_t<metadb_index_hash> & out) = 0;
+
+	//! Determines whether a no longer needed user data file for this index exists. \n
+	//! For use with index IDs that are not currently registered only.
+	virtual bool have_orphaned_data(const GUID & index_id) = 0;
+
+	//! Deletes no longer needed index user data files. \n
+	//! For use with index IDs that are not currently registered only.
+	virtual void erase_orphaned_data(const GUID & index_id) = 0;
+
+	//! Saves index user data file now. You normally don't need to call this; it's done automatically when saving foobar2000 configuration. \n
+	//! This will throw exceptions in case of a failure (out of disk space etc).
+	virtual void save_index_data(const GUID & index_id) = 0;
+};
