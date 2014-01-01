@@ -5,31 +5,29 @@
  * GOVERNED BY A BSD-STYLE SOURCE LICENSE INCLUDED WITH THIS SOURCE *
  * IN 'COPYING'. PLEASE READ THESE TERMS BEFORE DISTRIBUTING.       *
  *                                                                  *
- * THE OggVorbis SOURCE CODE IS (C) COPYRIGHT 1994-2007             *
+ * THE OggVorbis SOURCE CODE IS (C) COPYRIGHT 1994-2009             *
  * by the Xiph.Org Foundation http://www.xiph.org/                  *
  *                                                                  *
  ********************************************************************
 
  function: catch-all toplevel settings for q modes only
- last mod: $Id: setup_X.h 2009-03-11 aoyumi $
+ last mod: $Id: setup_X.h 16894 2010-02-12 20:32:12Z xiphmont $
 
  ********************************************************************/
 
-static const double rate_mapping_X[13]={
-  -1.,-1.,-1.,-1.,-1.,-1.,-1.
+static const double rate_mapping_X[12]={
+  -1.,-1.,-1.,-1.,-1.,-1.,
   -1.,-1.,-1.,-1.,-1.,-1.
 };
 
 static const ve_setup_data_template ve_setup_X_stereo={
-//  11,
-  12,
+  11,
   rate_mapping_X,
   quality_mapping_44,
-  preamp_48,
   2,
   50000,
   200000,
-  
+
   blocksize_short_44,
   blocksize_long_44,
 
@@ -47,7 +45,7 @@ static const ve_setup_data_template ve_setup_X_stereo={
   _psy_noisebias_trans,
   _psy_noisebias_long,
   _psy_noise_suppress,
-  
+
   _psy_compand_44,
   _psy_compand_short_mapping,
   _psy_compand_long_mapping,
@@ -58,7 +56,7 @@ static const ve_setup_data_template ve_setup_X_stereo={
 
   _psy_ath_floater,
   _psy_ath_abs,
-  
+
   _psy_lowpass_44,
 
   _psy_global_44,
@@ -67,22 +65,20 @@ static const ve_setup_data_template ve_setup_X_stereo={
 
   _floor_books,
   _floor,
-  _floor_short_mapping_44,
-  _floor_long_mapping_44,
+  2,
+  _floor_mapping_44,
 
   _mapres_template_44_stereo
 };
 
 static const ve_setup_data_template ve_setup_X_uncoupled={
-//  11,
-  12,
+  11,
   rate_mapping_X,
   quality_mapping_44,
-  preamp_48,
   -1,
   50000,
   200000,
-  
+
   blocksize_short_44,
   blocksize_long_44,
 
@@ -100,7 +96,7 @@ static const ve_setup_data_template ve_setup_X_uncoupled={
   _psy_noisebias_trans,
   _psy_noisebias_long,
   _psy_noise_suppress,
-  
+
   _psy_compand_44,
   _psy_compand_short_mapping,
   _psy_compand_long_mapping,
@@ -111,7 +107,7 @@ static const ve_setup_data_template ve_setup_X_uncoupled={
 
   _psy_ath_floater,
   _psy_ath_abs,
-  
+
   _psy_lowpass_44,
 
   _psy_global_44,
@@ -120,22 +116,20 @@ static const ve_setup_data_template ve_setup_X_uncoupled={
 
   _floor_books,
   _floor,
-  _floor_short_mapping_44,
-  _floor_long_mapping_44,
+  2,
+  _floor_mapping_44,
 
   _mapres_template_44_uncoupled
 };
 
 static const ve_setup_data_template ve_setup_XX_stereo={
-//  2,
-  3,
+  2,
   rate_mapping_X,
   quality_mapping_8,
-  preamp_8,
   2,
   0,
   8000,
-  
+
   blocksize_8,
   blocksize_8,
 
@@ -153,7 +147,7 @@ static const ve_setup_data_template ve_setup_XX_stereo={
   NULL,
   NULL,
   _psy_noise_suppress,
-  
+
   _psy_compand_8,
   _psy_compand_8_mapping,
   NULL,
@@ -164,7 +158,7 @@ static const ve_setup_data_template ve_setup_XX_stereo={
 
   _psy_ath_floater_8,
   _psy_ath_abs_8,
-  
+
   _psy_lowpass_8,
 
   _psy_global_44,
@@ -173,22 +167,20 @@ static const ve_setup_data_template ve_setup_XX_stereo={
 
   _floor_books,
   _floor,
+  1,
   _floor_mapping_8,
-  NULL,
 
   _mapres_template_8_stereo
 };
 
 static const ve_setup_data_template ve_setup_XX_uncoupled={
-//  2,
-  3,
+  2,
   rate_mapping_X,
   quality_mapping_8,
-  preamp_8,
   -1,
   0,
   8000,
-  
+
   blocksize_8,
   blocksize_8,
 
@@ -206,7 +198,7 @@ static const ve_setup_data_template ve_setup_XX_uncoupled={
   NULL,
   NULL,
   _psy_noise_suppress,
-  
+
   _psy_compand_8,
   _psy_compand_8_mapping,
   NULL,
@@ -217,7 +209,7 @@ static const ve_setup_data_template ve_setup_XX_uncoupled={
 
   _psy_ath_floater_8,
   _psy_ath_abs_8,
-  
+
   _psy_lowpass_8,
 
   _psy_global_44,
@@ -226,9 +218,8 @@ static const ve_setup_data_template ve_setup_XX_uncoupled={
 
   _floor_books,
   _floor,
+  1,
   _floor_mapping_8,
-  NULL,
 
   _mapres_template_8_uncoupled
 };
-

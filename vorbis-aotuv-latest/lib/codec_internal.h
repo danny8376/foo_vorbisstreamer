@@ -5,13 +5,13 @@
  * GOVERNED BY A BSD-STYLE SOURCE LICENSE INCLUDED WITH THIS SOURCE *
  * IN 'COPYING'. PLEASE READ THESE TERMS BEFORE DISTRIBUTING.       *
  *                                                                  *
- * THE OggVorbis SOURCE CODE IS (C) COPYRIGHT 1994-2007             *
+ * THE OggVorbis SOURCE CODE IS (C) COPYRIGHT 1994-2009             *
  * by the Xiph.Org Foundation http://www.xiph.org/                  *
  *                                                                  *
  ********************************************************************
 
  function: libvorbis codec headers
- last mod: $Id: codec_internal.h 2008-09-04 aoyumi $
+ last mod: $Id: codec_internal.h 16227 2009-07-08 06:58:46Z xiphmont $
 
  ********************************************************************/
 
@@ -23,20 +23,20 @@
 
 #define BLOCKTYPE_IMPULSE    0
 #define BLOCKTYPE_PADDING    1
-#define BLOCKTYPE_TRANSITION 0 
+#define BLOCKTYPE_TRANSITION 0
 #define BLOCKTYPE_LONG       1
 
 #define PACKETBLOBS 15
 
 typedef struct vorbis_block_internal{
-  float  **pcmdelay;  /* this is a pointer into local storage */ 
+  float  **pcmdelay;  /* this is a pointer into local storage */
   float  ampmax;
   int    blocktype;
 
-  oggpack_buffer *packetblob[PACKETBLOBS]; /* initialized, must be freed; 
-					      blob [PACKETBLOBS/2] points to
-					      the oggpack_buffer in the 
-					      main vorbis_block */
+  oggpack_buffer *packetblob[PACKETBLOBS]; /* initialized, must be freed;
+                                              blob [PACKETBLOBS/2] points to
+                                              the oggpack_buffer in the
+                                              main vorbis_block */
 } vorbis_block_internal;
 
 typedef void vorbis_look_floor;
@@ -60,7 +60,7 @@ typedef void vorbis_info_mapping;
 
 typedef struct private_state {
   /* local lookup storage */
-  envelope_lookup        *ve; /* envelope lookup */    
+  envelope_lookup        *ve; /* envelope lookup */
   int                     window[2];
   vorbis_look_transform **transform[2];    /* block, type */
   drft_lookup             fft_look[2];
@@ -82,22 +82,12 @@ typedef struct private_state {
   bitrate_manager_state bms;
 
   ogg_int64_t sample_count;
-
-  /* encode only
-    added by aoyumi */
-  float *lownoise_compand_level;
-  float *nblock; /* lW logmdct buffer */  
-  float *tblock; /* temporal masking buffer (impulse block) */
-  int lW_blocktype; /* last window block type */
-  int lW_modenumber; /* last window mode number (0=short, 1=long) */
-  int lW_no; /* the number of continuous window blocks (last window) */
-  int impadnum; /* padding block number (impulse-padding-impulse case) for M3 */
 } private_state;
 
 /* codec_setup_info contains all the setup information specific to the
    specific compression/decompression mode in progress (eg,
    psychoacoustic settings, channel setup, options, codebook
-   etc).  
+   etc).
 *********************************************************************/
 
 #include "highlevel.h"
@@ -137,8 +127,7 @@ typedef struct codec_setup_info {
   highlevel_encode_setup hi; /* used only by vorbisenc.c.  It's a
                                 highly redundant structure, but
                                 improves clarity of program flow. */
-  int         halfrate_flag; /* painless downsample for decode */  
-  int         block_lowpassr[2];
+  int         halfrate_flag; /* painless downsample for decode */
 } codec_setup_info;
 
 extern vorbis_look_psy_global *_vp_global_look(vorbis_info *vi);
@@ -150,7 +139,7 @@ typedef struct {
   int sorted_index[VIF_POSIT+2];
   int forward_index[VIF_POSIT+2];
   int reverse_index[VIF_POSIT+2];
-  
+
   int hineighbor[VIF_POSIT];
   int loneighbor[VIF_POSIT];
   int posts;
@@ -167,13 +156,12 @@ typedef struct {
 
 
 extern int *floor1_fit(vorbis_block *vb,vorbis_look_floor1 *look,
-			  const float *logmdct,   /* in */
-			  const float *logmask);
+                          const float *logmdct,   /* in */
+                          const float *logmask);
 extern int *floor1_interpolate_fit(vorbis_block *vb,vorbis_look_floor1 *look,
-			  int *A,int *B,
-			  int del);
+                          int *A,int *B,
+                          int del);
 extern int floor1_encode(oggpack_buffer *opb,vorbis_block *vb,
-		  vorbis_look_floor1 *look,
-		  int *post,int *ilogmask);
+                  vorbis_look_floor1 *look,
+                  int *post,int *ilogmask);
 #endif
-

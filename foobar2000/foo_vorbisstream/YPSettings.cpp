@@ -66,7 +66,6 @@ END_MESSAGE_MAP()
 void CYPSettings::OnPublic() 
 {
     UpdateData(TRUE);
-	// TODO: Add your control notification handler code here
     EnableDisable();
 }
 
@@ -94,7 +93,7 @@ void CYPSettings::EnableDisable()
 BOOL CYPSettings::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
+	::EnableThemeDialogTexture(*this, ETDT_ENABLETAB);
 	
-	return TRUE;  // return TRUE unless you set the focus to a control
-	              // EXCEPTION: OCX Property Pages should return FALSE
+	return TRUE;
 }

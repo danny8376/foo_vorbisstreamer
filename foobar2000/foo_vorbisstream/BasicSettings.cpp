@@ -15,7 +15,7 @@ static char THIS_FILE[] = __FILE__;
 // CBasicSettings dialog
 
 
-CBasicSettings::CBasicSettings(CWnd* pParent /*=NULL*/)
+CBasicSettings::CBasicSettings(CWnd* pParent)
 	: CDialog(CBasicSettings::IDD, pParent)
 {
 	//{{AFX_DATA_INIT(CBasicSettings)
@@ -25,14 +25,12 @@ CBasicSettings::CBasicSettings(CWnd* pParent /*=NULL*/)
 	m_Mountpoint = _T("");
 	m_Password = _T("");
 	m_Quality = _T("");
-	m_ReconnectSecs = _T("");
 	m_Samplerate = _T("");
 	m_ServerIP = _T("");
 	m_ServerPort = _T("");
 	m_ServerType = _T("");
 	m_LamePreset = _T("");
 	m_UseBitrate = FALSE;
-//	m_JointStereo = FALSE;
 	//}}AFX_DATA_INIT
 }
 
@@ -41,35 +39,27 @@ void CBasicSettings::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
 	//{{AFX_DATA_MAP(CBasicSettings)
-//	DDX_Control(pDX, IDC_JOINTSTEREO, m_JointStereoCtrl);
 	DDX_Control(pDX, IDC_USEBITRATE, m_UseBitrateCtrl);
 	DDX_Control(pDX, IDC_QUALITY, m_QualityCtrl);
 	DDX_Control(pDX, IDC_BITRATE, m_BitrateCtrl);
 	DDX_Control(pDX, IDC_SERVER_TYPE, m_ServerTypeCtrl);
-//	DDX_Control(pDX, IDC_ENCODER_TYPE, m_EncoderTypeCtrl);
 	DDX_Text(pDX, IDC_BITRATE, m_Bitrate);
 	DDX_Text(pDX, IDC_CHANNELS, m_Channels);
-//	DDX_CBString(pDX, IDC_ENCODER_TYPE, m_EncoderType);
 	DDX_Text(pDX, IDC_MOUNTPOINT, m_Mountpoint);
 	DDX_Text(pDX, IDC_PASSWORD, m_Password);
 	DDX_Text(pDX, IDC_QUALITY, m_Quality);
-	DDX_Text(pDX, IDC_RECONNECTSECS, m_ReconnectSecs);
 	DDX_Text(pDX, IDC_SAMPLERATE, m_Samplerate);
 	DDX_Text(pDX, IDC_SERVER_IP, m_ServerIP);
 	DDX_Text(pDX, IDC_SERVER_PORT, m_ServerPort);
 	DDX_CBString(pDX, IDC_SERVER_TYPE, m_ServerType);
 	DDX_Check(pDX, IDC_USEBITRATE, m_UseBitrate);
-//	DDX_Check(pDX, IDC_JOINTSTEREO, m_JointStereo);
 	//}}AFX_DATA_MAP
 }
 
 
 BEGIN_MESSAGE_MAP(CBasicSettings, CDialog)
 	//{{AFX_MSG_MAP(CBasicSettings)
-//	ON_CBN_SELCHANGE(IDC_ENCODER_TYPE, OnSelchangeEncoderType)
-//	ON_CBN_SELENDOK(IDC_ENCODER_TYPE, OnSelendokEncoderType)
 	ON_BN_CLICKED(IDC_USEBITRATE, OnUsebitrate)
-//	ON_BN_CLICKED(IDC_JOINTSTEREO, OnJointstereo)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -78,9 +68,8 @@ END_MESSAGE_MAP()
 
 BOOL CBasicSettings::OnInitDialog() 
 {
-    //HINSTANCE       hDLL;
-
 	CDialog::OnInitDialog();
+	::EnableThemeDialogTexture(*this, ETDT_ENABLETAB);
 	
 	// TODO: Add extra initialization here
 	m_ServerTypeCtrl.AddString(_T("Icecast2"));
@@ -97,7 +86,6 @@ void CBasicSettings::UpdateFields() {
 	m_UseBitrateCtrl.EnableWindow(TRUE);
     m_BitrateCtrl.EnableWindow(m_UseBitrate);
 	m_QualityCtrl.EnableWindow(!m_UseBitrate);
-//	m_JointStereoCtrl.EnableWindow(FALSE);
 }
 void CBasicSettings::OnSelchangeEncoderType() 
 {
@@ -129,5 +117,4 @@ void CBasicSettings::OnJointstereo()
 	// TODO: Add your control notification handler code here
 	UpdateData(TRUE);
 	UpdateFields();
-	
 }

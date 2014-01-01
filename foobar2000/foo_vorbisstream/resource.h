@@ -13,11 +13,8 @@
 #define IDR_CONTEXT                     107
 #define IDB_LIVE_ON                     109
 #define IDB_LIVE_OFF                    110
-#define IDR_MAINFRAME                   111
 #define IDB_LOGO                        115
-#define IDR_ICON                        116
 #define IDB_SMALLLOGO                   124
-#define IDR_SYSTRAY                     126
 #define IDR_SYSTRAY_MENU                130
 #define ID_QUIT                         200
 #define IDD_DIALOG1                     301
@@ -72,8 +69,6 @@
 #define ID_POPUP_CONNECT                40003
 #define ID_POPUP_CONFIGURE              40004
 #define ID_POPUP_DELETE                 40005
-#define ID__RESTORE                     40008
-#define IDI_RESTORE                     40009
 
 // Next default values for new objects
 // 

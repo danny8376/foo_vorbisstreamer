@@ -53,6 +53,16 @@ oddsock@oddsock.org
 #define SOCKET int
 #endif
 
+
+
+
+
+#define WM_SOCKET WM_USER+101  // SPMOD
+
+
+
+
+
 class CMySocket  
 {
 public:
@@ -63,7 +73,7 @@ public:
 	void socketErrorExit(char *szError);
 	SOCKET DoSocketListen(unsigned short portnum);
 	SOCKET DoSocketAccept(SOCKET s);
-	SOCKET DoSocketConnect(char *hostname, unsigned short portnum);
+	SOCKET DoSocketConnect(char *hostname, unsigned short portnum, HWND msg_hwnd);
 	void CheckSocketError(int iError, char *szMessage);
 	void CleanAndExit(int iError);
 

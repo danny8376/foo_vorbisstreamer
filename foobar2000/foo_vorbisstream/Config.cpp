@@ -4,7 +4,7 @@
 #include "stdafx.h"
 #include "resource.h"
 #include "Config.h"
-//#include "MainWindow.h"
+#include <tchar.h>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -24,20 +24,6 @@ CConfig::CConfig(dsp_preset_edit_callback & p_callback,CWnd* pParent /*=NULL*/)
     ypSettings = new CYPSettings();
     currentEnc = 0;
 }
-
-/////////////////////////////////////////////////////////////////////////////
-// CConfig dialog
-/*CConfig::CConfig(CWnd* pParent)
-	: CDialog(CConfig::IDD, pParent)
-{
-	//{{AFX_DATA_INIT(CConfig)
-		// NOTE: the ClassWizard will add member initialization here
-	//}}AFX_DATA_INIT
-
-    basicSettings = new CBasicSettings();
-    ypSettings = new CYPSettings();
-    currentEnc = 0;
-}*/
 
 CConfig::~CConfig()
 {
@@ -78,8 +64,17 @@ BOOL CConfig::OnInitDialog()
     basicSettings->Create((UINT)IDD_PROPPAGE_LARGE, this);    
     ypSettings->Create((UINT)IDD_PROPPAGE_LARGE1, this);    
 
+	{
+		CRect rc;
+		m_TabCtrl.GetWindowRect(&rc);
+		ScreenToClient(&rc);
+		m_TabCtrl.AdjustRect(FALSE, &rc);
+		basicSettings->SetWindowPos(NULL, rc.left, rc.top, rc.Width(), rc.Height(), SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW);
+		ypSettings->SetWindowPos(NULL, rc.left, rc.top, rc.Width(), rc.Height(), SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOREDRAW);
+	}
     basicSettings->ShowWindow(SW_SHOW);
     ypSettings->ShowWindow(SW_HIDE);
+
 
 	GlobalsToDialog(globals);
 
@@ -114,8 +109,6 @@ void CConfig::GlobalsToDialog(edcastGlobals *g) {
 	basicSettings->m_UseBitrate=(g->gOggBitQualFlag!=0);
 	basicSettings->m_EncoderType = "OggVorbis";
 	basicSettings->m_Quality = g->gOggQuality;
-
-	//    basicSettings->m_EncoderTypeCtrl.SelectString(0, basicSettings->m_EncoderType);
     basicSettings->m_Mountpoint = g->gMountpoint;
     basicSettings->m_Password = g->gPassword;
     basicSettings->m_ServerIP = g->gServer;
@@ -137,25 +130,34 @@ void CConfig::GlobalsToDialog(edcastGlobals *g) {
     ypSettings->EnableDisable();
 }
 
-void CConfig::DialogToGlobals(edcastGlobals *g) {
-    char    buf[255] = "";
+// Workaround for clowns doing unchecked strcpy and mixing CString with char*
+template<unsigned outWidth> static void myStrCpyHack(char (&out)[outWidth], const TCHAR * in) {
+	for(unsigned outWalk = 0; ; ) {
+		TCHAR c;
+		if (outWalk + 1 == outWidth) c = 0; // don't write past outWidth
+		else c = *in++;
+		if ((unsigned)c > 0x7F) c = '?';
+		out[outWalk++] = (char)c;
+		if (c == 0) break;
+	}
+}
 
+void CConfig::DialogToGlobals(edcastGlobals *g) {
+    
     currentEnc = g->encoderNumber;
 
-    g->currentBitrate = atoi(LPCSTR(basicSettings->m_Bitrate));
-    g->currentChannels = atoi(LPCSTR(basicSettings->m_Channels));
-    g->currentSamplerate = atoi(LPCSTR(basicSettings->m_Samplerate));
+    g->currentBitrate = _ttoi(basicSettings->m_Bitrate);
+    g->currentChannels = _ttoi(basicSettings->m_Channels);
+    g->currentSamplerate = _ttoi(basicSettings->m_Samplerate);
 
 	g->gOggBitQualFlag=(basicSettings->m_UseBitrate)?1:0;
 
-    strcpy(g->gEncodeType, LPCSTR(basicSettings->m_EncoderType));
-    strcpy(g->gOggQuality, LPCSTR(basicSettings->m_Quality));
-    strcpy(g->gMountpoint, LPCSTR(basicSettings->m_Mountpoint));
-    strcpy(g->gPassword, LPCSTR(basicSettings->m_Password));
-
-    g->gReconnectSec = atoi(LPCSTR(basicSettings->m_ReconnectSecs));
-    strcpy(g->gServer, LPCSTR(basicSettings->m_ServerIP));
-    strcpy(g->gPort, LPCSTR(basicSettings->m_ServerPort));
+    myStrCpyHack(g->gEncodeType, basicSettings->m_EncoderType);
+    myStrCpyHack(g->gOggQuality, basicSettings->m_Quality);
+    myStrCpyHack(g->gMountpoint, basicSettings->m_Mountpoint);
+    myStrCpyHack(g->gPassword, basicSettings->m_Password);
+    myStrCpyHack(g->gServer, basicSettings->m_ServerIP);
+    myStrCpyHack(g->gPort, basicSettings->m_ServerPort);
 
     if (basicSettings->m_ServerType == "Shoutcast") {
         g->gShoutcastFlag = 1;
@@ -165,18 +167,18 @@ void CConfig::DialogToGlobals(edcastGlobals *g) {
         g->gShoutcastFlag = 0;
         g->gIcecast2Flag = 1;
     }
-    strcpy(g->gServerType, LPCSTR(basicSettings->m_ServerType));
+    myStrCpyHack(g->gServerType, basicSettings->m_ServerType);
 
     ypSettings->UpdateData(TRUE);
 	
 	g->gPubServ=(ypSettings->m_Public)?1:0;
-    strcpy(g->gServDesc, LPCSTR(ypSettings->m_StreamDesc));
-    strcpy(g->gServName, LPCSTR(ypSettings->m_StreamName));
-    strcpy(g->gServGenre, LPCSTR(ypSettings->m_StreamGenre));
-    strcpy(g->gServURL, LPCSTR(ypSettings->m_StreamURL));
-    strcpy(g->gServAIM, LPCSTR(ypSettings->m_StreamAIM));
-    strcpy(g->gServICQ, LPCSTR(ypSettings->m_StreamICQ));
-    strcpy(g->gServIRC, LPCSTR(ypSettings->m_StreamIRC));
+    myStrCpyHack(g->gServDesc, ypSettings->m_StreamDesc);
+    myStrCpyHack(g->gServName, ypSettings->m_StreamName);
+    myStrCpyHack(g->gServGenre, ypSettings->m_StreamGenre);
+    myStrCpyHack(g->gServURL, ypSettings->m_StreamURL);
+    myStrCpyHack(g->gServAIM, ypSettings->m_StreamAIM);
+    myStrCpyHack(g->gServICQ, ypSettings->m_StreamICQ);
+    myStrCpyHack(g->gServIRC, ypSettings->m_StreamIRC);
 }
 
 void CConfig::OnClose() 
@@ -188,22 +190,18 @@ void CConfig::OnOK()
 {
 	basicSettings->UpdateData(TRUE);
 	ypSettings->UpdateData(TRUE);
-//    CMainWindow *pwin = (CMainWindow *)parentDialog;
-//    pwin->ProcessConfigDone(currentEnc, this);
-	edcastGlobals* out=new edcastGlobals;
-	memset(out, '\000', sizeof(edcastGlobals));
-	DialogToGlobals(out);
-	dsp_preset_impl* preout=new dsp_preset_impl;
-	preout->set_owner(data_owner);
-	preout->set_data(out,sizeof(edcastGlobals));
+
+	pfc::ptrholder_t<edcastGlobals> l_globals = new edcastGlobals; // could just do "edcastGlobals l_globals;" but it's huge and ugly to put on stack
+	DialogToGlobals(&*l_globals);
+	dsp_preset_impl preout;
+	preout.set_owner(data_owner);
+	preout.set_data(&*l_globals,sizeof(edcastGlobals));
 	
-	m_callback.on_preset_changed(*preout);
+	m_callback.on_preset_changed(preout);
     CDialog::OnOK();
 }
 
 void CConfig::OnCancel() 
 {
-//    CMainWindow *pwin = (CMainWindow *)parentDialog;
-//    pwin->ProcessConfigDone(-1, this);
     CDialog::OnCancel();
 }

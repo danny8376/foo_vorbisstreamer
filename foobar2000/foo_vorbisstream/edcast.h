@@ -2,11 +2,10 @@
 #define __DSP_EDCAST_H
 
 #include "Socket.h"
-#include <vorbis/vorbisenc.h>
+#include "../../include/vorbis/vorbisenc.h"
 #include <stdio.h>
 #include <time.h>
 
-#define UNICODE
 #include "../sdk/foobar2000.h"
 
 class stream_encoders;
@@ -18,22 +17,14 @@ extern stream_encoders encoders;
 
 #define char_t char
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-#include "Resample.h"
-#ifdef __cplusplus
-}
-#endif
-
 #define LM_FORCE 0
 #define LM_ERROR 1
 #define LM_INFO 2
 #define LM_DEBUG 3
-#define LOG_FORCE LM_FORCE, TEXT(__FILE__), __LINE__
-#define LOG_ERROR LM_ERROR, TEXT(__FILE__), __LINE__
-#define LOG_INFO LM_INFO, TEXT(__FILE__), __LINE__
-#define LOG_DEBUG LM_DEBUG, TEXT(__FILE__), __LINE__
+#define LOG_FORCE LM_FORCE, __FILE__, __LINE__
+#define LOG_ERROR LM_ERROR, __FILE__, __LINE__
+#define LOG_INFO LM_INFO, __FILE__, __LINE__
+#define LOG_DEBUG LM_DEBUG, __FILE__, __LINE__
 
 #define FormatID 'fmt '   /* chunkID for Format Chunk. NOTE: There is a space at the end of this ID. */
 // For skin stuff
@@ -102,7 +93,9 @@ struct wavhead
 static struct wavhead   wav_header;
 
 // Global variables....gotta love em...
-typedef struct {
+struct edcastGlobals {
+	edcastGlobals() {memset(this, 0, sizeof(*this));}
+	~edcastGlobals() {}
 	long		currentSamplerate;
 	int		currentBitrate;
 	int		currentBitrateMin;
@@ -147,6 +140,8 @@ typedef struct {
 	int		gCurrentlyEncoding;
 	char_t		gIceFlag[10];
 	char_t		gOggQuality[25];
+
+	int		gForceBreakEncoding; // SPMOD
 	
 	int		gOggBitQualFlag;
 	char_t	gOggBitQual[40];
@@ -175,8 +170,8 @@ typedef struct {
 	int		gLockSongTitle;
     int     gNumEncoders;
 
-	res_state	resampler;
-	int	initializedResampler;
+	//res_state	resampler;
+	//int	initializedResampler;
 	void (*sourceURLCallback)(void *, void *);
 	void (*destURLCallback)(void *, void *);
 	void (*serverStatusCallback)(void *, void *);
@@ -197,7 +192,6 @@ typedef struct {
 
 	DWORD           dwSamples;
 
-	char_t	gConfigFileName[255];
 	char_t	gOggEncoderText[255];
 	int		gForceStop;
 
@@ -215,20 +209,30 @@ typedef struct {
     int     encoderNumber;
     bool    forcedDisconnect;
     time_t     forcedDisconnectSecs;
-	
-	char_t	*configVariables[255];
-	int		numConfigVariables;
-} edcastGlobals;
+};
 
 
-void addConfigVariable(edcastGlobals *g, char_t *variable);
+
+
+typedef struct { // SPMOD
+	edcastGlobals *g;
+	char *song_title;
+} waitingSocketInfo; // SPMOD
+
+
+
+
+
 int initializeencoder(edcastGlobals *g);
 void getCurrentSongTitle(edcastGlobals *g, char_t *song, char_t *artist, char_t *full);
 void initializeGlobals(edcastGlobals *g);
 void ReplaceString(char_t *source, char_t *dest, char_t *from, char_t *to);
-void config_read(edcastGlobals *g);
-void config_write(edcastGlobals *g);
 int connectToServer(edcastGlobals *g);
+
+
+int connectToServerResponse(edcastGlobals *g, bool connectSucceed, SOCKET s); // SPMOD
+
+
 int disconnectFromServer(edcastGlobals *g);
 int do_encoding(edcastGlobals *g, short int *samples, int numsamples, int nch);
 void URLize(char_t *input, char_t *output, int inputlen, int outputlen);
@@ -236,9 +240,6 @@ int updateSongTitle(edcastGlobals *g, int forceURL);
 int setCurrentSongTitleURL(edcastGlobals *g, char_t *song);
 int ogg_encode_dataout(edcastGlobals *g);
 int	trimVariable(char_t *variable);
-int readConfigFile(edcastGlobals *g,int readOnly = 0);
-int writeConfigFile(edcastGlobals *g);
-void    printConfigFileValues();
 void ErrorMessage(char_t *title, char_t *fmt, ...);
 //int setCurrentSongTitle(edcastGlobals *g,char_t *song);
 char_t*   getSourceURL(edcastGlobals *g);
@@ -246,8 +247,6 @@ void    setSourceURL(edcastGlobals *g,char_t *url);
 long    getCurrentSamplerate(edcastGlobals *g);
 int     getCurrentBitrate(edcastGlobals *g);
 int     getCurrentChannels(edcastGlobals *g);
-int  ocConvertAudio(edcastGlobals *g,float *in_samples, float *out_samples, int num_in_samples, int num_out_samples);
-int initializeResampler(edcastGlobals *g,long inSampleRate, long inNCH);
 int handle_output(edcastGlobals *g, float *samples, int nsamples, int nchannels, int in_samplerate);
 void setServerStatusCallback(edcastGlobals *g,void (*pCallback)(void *,void *));
 void setGeneralStatusCallback(edcastGlobals *g, void (*pCallback)(void *,void *));
@@ -270,7 +269,6 @@ char_t*	getServerDesc(edcastGlobals *g);
 int	getReconnectFlag(edcastGlobals *g);
 int getReconnectSecs(edcastGlobals *g);
 int getIsConnected(edcastGlobals *g);
-int resetResampler(edcastGlobals *g);
 void setOggEncoderText(edcastGlobals *g, char_t *text);
 int getLiveRecordingSetFlag(edcastGlobals *g);
 char_t *getCurrentRecordingName(edcastGlobals *g);
@@ -304,7 +302,5 @@ long getWritten(edcastGlobals *g);
 void setWritten(edcastGlobals *g, long writ);
 int deleteConfigFile(edcastGlobals *g);
 void	setAutoConnect(edcastGlobals *g, int flag);
-void addBasicEncoderSettings(edcastGlobals *g);
-void addUISettings(edcastGlobals *g);
 void LogMessage(edcastGlobals *g, int type, char_t *source, int line, char_t *fmt, ...);
 #endif

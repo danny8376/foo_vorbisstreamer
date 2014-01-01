@@ -4,13 +4,14 @@
 #include "resource.h"
 #include "Edcast.h"
 
-#define UNICODE
 #include "../SDK/foobar2000.h"
 
 class dsp_vstream;
 
 class stream_encoder {
 public:
+	stream_encoder();
+	~stream_encoder();
 	void connect();
 	void disconnect();
 	void reconnect();
@@ -20,10 +21,21 @@ public:
 	void detach();
 	void set_config(const dsp_preset&);
 	bool ready_to_stream();
+	unsigned get_sample_rate() const {return config->currentSamplerate;}
 
 //	int reconnect_wait;
 //	time_t connect_time;
 //	int index;
+
+
+
+	/*
+	void update_metadata(const file_info&);
+	void update_metadata(metadb_handle_ptr);
+	pfc::list_t<pfc::string>metadata;
+	*/
+
+
 
 	edcastGlobals*config;
 	dsp_vstream*attached;
@@ -51,6 +63,12 @@ public:
 
 	pfc::list_t<stream_encoder*>enc_list;
 	pfc::list_t<pfc::string>metadata;
+
+
+
+	metadb_handle::ptr m_lastTrack;
+
+
 
 	CWinApp	main_app;
 private:

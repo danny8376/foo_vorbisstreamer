@@ -2,10 +2,9 @@
 #include "Edcast.h"
 #include "Config.h"
 
-uCallStackTracker *stracker;
-extern unsigned dsp_instances;
+extern pfc::counter dsp_instances;
 
-VOID CALLBACK _reconnect(HWND hwnd, UINT uMsg, UINT idEvent, DWORD dwTime){
+static VOID CALLBACK _reconnect(HWND hwnd, UINT uMsg, UINT idEvent, DWORD dwTime){
 	encoders.reconnect();
 }
 
@@ -21,7 +20,6 @@ void stream_encoders::update_metadata(const file_info&p_info){
 			pfc::string value = p_info.meta_enum_value(i,j);
 			pfc::string buffer=name+"="+value;
 			metadata.add_item(buffer);
-			console::info((char*)buffer.ptr());
 
 			if(pfc::string::g_equalsCaseInsensitive(name,"artist"))
 				artist=value;
@@ -64,8 +62,10 @@ void stream_encoders::handle_chunk(audio_chunk*p_chunk){
 void stream_encoder::connect(){
 	if((!config->weareconnected)&&(ready_to_stream())){
 		setForceStop(config, 0);
-		if(connectToServer(config) == 0)
-			config->forcedDisconnect = true;
+
+		connectToServer(config); // SPMOD
+		//if(connectToServer(config) == 0)
+		//	config->forcedDisconnect = true; // Did this in connectToServerResponse
 	}
 }
 
@@ -76,7 +76,7 @@ void stream_encoders::connect(){
 		connected = true;
 		for(unsigned i=0;i<enc_list.get_count();++i)
 			enc_list[i]->connect();
-		reconnect_timer = SetTimer(0,0,1000,(TIMERPROC) _reconnect);
+		reconnect_timer = SetTimer(0,0,30000,(TIMERPROC) _reconnect);
 	}
 }
 
@@ -124,6 +124,14 @@ bool stream_encoder::can_attach(const dsp_preset&p_data){
 	return hax;	
 }
 
+stream_encoder::stream_encoder() {
+	config=new edcastGlobals;
+	initializeGlobals(config);
+}
+stream_encoder::~stream_encoder() {
+	delete config;
+}
+
 stream_encoder* stream_encoders::attach(const dsp_preset&p_data,dsp_vstream*dsp){
 	//we might just need a detached encoder.
 	for(unsigned i=0;i<enc_list.get_count();++i)
@@ -134,15 +142,11 @@ stream_encoder* stream_encoders::attach(const dsp_preset&p_data,dsp_vstream*dsp)
 	
 	//otherwise, we gotta make a new encoder
 
-	stream_encoder* next=new stream_encoder;
+	stream_encoder* next=new stream_encoder();
 	enc_list.add_item(next);
-	next->config=new edcastGlobals;
-	memset(next->config,0,sizeof(edcastGlobals));
-	initializeGlobals(next->config);
-	addBasicEncoderSettings(next->config);
 	next->set_config(p_data);	
 	next->connect();
-	next->attached=dsp;
+	next->attached = dsp;
 	purge_detached();
 	return next;
 }
@@ -155,6 +159,7 @@ void stream_encoder::set_config(const dsp_preset&p_data){
 	config->currentChannels=cfg->currentChannels;
 	config->currentSamplerate=cfg->currentSamplerate;
 	config->gOggBitQualFlag=cfg->gOggBitQualFlag;
+	config->gReconnectSec=cfg->gReconnectSec;
 	config->gShoutcastFlag=cfg->gShoutcastFlag;
 	config->gIcecast2Flag=cfg->gIcecast2Flag;
 	config->gPubServ=cfg->gPubServ;
@@ -181,7 +186,7 @@ void stream_encoder::detach(){
 }
 
 void stream_encoders::purge_detached(){
-	if(enc_list.get_count()>dsp_instances)
+	if(enc_list.get_count()>(unsigned)dsp_instances)
 		for(unsigned i=0;i<enc_list.get_count();++i)
 			if(!enc_list[i]->attached){
 				delete enc_list[i];

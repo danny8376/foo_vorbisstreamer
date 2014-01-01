@@ -7,12 +7,11 @@
 #include <sys/timeb.h>
 #include <time.h>
 #include <stdarg.h>
-#include <vorbis/vorbisenc.h>
+#include "../../include/vorbis/vorbisenc.h"
 #include "Encoders.h"
 #include "Edcast.h"
 #include "Socket.h"
 
-#define UNICODE
 #include "../SDK/foobar2000.h"
 #include "../shared/shared.h"
 
@@ -30,7 +29,6 @@ extern edcastGlobals			gMain;
 long	dwDataBlockPos = 0;
 long	TotalWritten = 0;
 int buffer_blocksize = 0;
-//critical_section mutex;
 
 typedef struct tagConfigFileValue
 {
@@ -44,17 +42,23 @@ static int				numConfigValues = 0;
 
 static int				greconnectFlag = 0;
 
+
+
+
+
+static HWND mh_hwnd = 0; // SPMOD
+static pfc::map_t<SOCKET, waitingSocketInfo*> waitingSockets;
+
+
+
+
+
 int getReconnectFlag(edcastGlobals *g) {
 	return g->gAutoReconnect;
 }
 
 int getReconnectSecs(edcastGlobals *g) {
 	return g->gReconnectSec;
-}
-
-void addConfigVariable(edcastGlobals *g, char_t *variable) {
-	g->configVariables[g->numConfigVariables] = _strdup(variable);
-	g->numConfigVariables++;
 }
 
 long getWritten(edcastGlobals *g) {
@@ -146,19 +150,11 @@ void setLockedMetadataFlag(edcastGlobals *g, int flag) {
 	g->gLockSongTitle = flag;
 }
 
-int resetResampler(edcastGlobals *g) {
-	if(g->initializedResampler) {
-		res_clear(&(g->resampler));
-	}
-
-	g->initializedResampler = 0;
-	return 1;
-}
 
 /* Gratuitously ripped from util.c */
-static char_t			base64table[64] = { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/' };
+static const char_t			base64table[64] = { 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/' };
 
-static signed char_t	base64decode[256] = { -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, 62, -2, -2, -2, 63, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, -2, -2, -2, -1, -2, -2, -2, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, -2, -2, -2, -2, -2, -2, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2 };
+static const signed char_t	base64decode[256] = { -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, 62, -2, -2, -2, 63, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, -2, -2, -2, -1, -2, -2, -2, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, -2, -2, -2, -2, -2, -2, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2, -2 };
 
 /*
  =======================================================================================================================
@@ -248,6 +244,9 @@ int sendToServer(edcastGlobals *g, int sd, char_t *data, int length, int type) {
 	int ret = 0;
 	int sendflags = 0;
 
+	if (g->gForceBreakEncoding) return -1; // SPMOD
+
+	/*
 	switch(type) {
 		case HEADER_TYPE:
 			ret = send(sd, data, length, sendflags);
@@ -257,6 +256,24 @@ int sendToServer(edcastGlobals *g, int sd, char_t *data, int length, int type) {
 			ret = send(sd, data, length, sendflags);
 			break;
 	}
+	*/
+	int tries = 0;
+	while(true) {
+		switch(type) {
+			case HEADER_TYPE:
+				ret = send(sd, data, length, sendflags);
+				break;
+
+			case CODEC_TYPE:
+				ret = send(sd, data, length, sendflags);
+				break;
+		}
+		if(ret == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK) { // buffer busy
+			if(tries > 4) break; // 5*0.1 => 0.5s
+			Sleep(100);
+			tries++;
+		} else break;
+	}
 
 	if(ret > 0) {
 		if(g->writeBytesCallback) {
@@ -265,225 +282,6 @@ int sendToServer(edcastGlobals *g, int sd, char_t *data, int length, int type) {
 	}
 
 	return ret;
-}
-
-int readConfigFile(edcastGlobals *g, int readOnly) {
-	FILE	*filep;
-	char_t	buffer[1024];
-	char_t	configFile[1024] = "";
-	char_t	defaultConfigName[] = "edcast";
-
-
-	numConfigValues = 0;
-	memset(&configFileValues, '\000', sizeof(configFileValues));
-
-	if(readOnly) {
-		sprintf(configFile, "%s", g->gConfigFileName);
-	}
-	else {
-		if(strlen(g->gConfigFileName) == 0) {
-			sprintf(configFile, "%s_%d.cfg", defaultConfigName, g->encoderNumber);
-		}
-		else {
-			sprintf(configFile, "%s_%d.cfg", g->gConfigFileName, g->encoderNumber);
-		}
-	}
-
-	filep = fopen(configFile, "r");
-	if(filep != 0){
-		while(!feof(filep)) {
-			char_t	*p2;
-
-			memset(buffer, '\000', sizeof(buffer));
-			fgets(buffer, sizeof(buffer) - 1, filep);
-			p2 = strchr(buffer, '\r');
-			if(p2) {
-				*p2 = '\000';
-			}
-
-			p2 = strchr(buffer, '\n');
-			if(p2) {
-				*p2 = '\000';
-			}
-
-			if(buffer[0] != '#') {
-				char_t	*p1 = strchr(buffer, '=');
-
-				if(p1) {
-					strncpy(configFileValues[numConfigValues].Variable, buffer, p1 - buffer);
-					p1++;	/* Get past the = */
-					strcpy(configFileValues[numConfigValues].Value, p1);
-					numConfigValues++;
-				}
-			}
-		}
-
-		if(filep) {
-			fclose(filep);
-		}
-	}
-
-	config_read(g);
-
-	if(!readOnly) {
-		writeConfigFile(g);
-	}
-
-	return 1;
-}
-
-int deleteConfigFile(edcastGlobals *g) {
-	char_t	configFile[1024] = "";
-	char_t	defaultConfigName[] = "edcast";
-
-	if(strlen(g->gConfigFileName) == 0) {
-		sprintf(configFile, "%s_%d.cfg", defaultConfigName, g->encoderNumber);
-	}
-	else {
-		sprintf(configFile, "%s_%d.cfg", g->gConfigFileName, g->encoderNumber);
-	}
-
-	_unlink(configFile);
-
-	return 1;
-}
-
-void setConfigFileName(edcastGlobals *g, char_t *configFile) {
-	strcpy(g->gConfigFileName, configFile);
-}
-
-char_t *getConfigFileName(edcastGlobals *g) {
-	return g->gConfigFileName;
-}
-
-int writeConfigFile(edcastGlobals *g) {
-	char_t	configFile[1024] = "";
-	char_t	defaultConfigName[] = "edcast";
-
-	config_write(g);
-
-	if(strlen(g->gConfigFileName) == 0) {
-		sprintf(configFile, "%s_%d.cfg", defaultConfigName, g->encoderNumber);
-	}
-	else {
-		sprintf(configFile, "%s_%d.cfg", g->gConfigFileName, g->encoderNumber);
-	}
-
-	FILE	*filep = fopen(configFile, "w");
-
-	if(filep == 0) {
-		LogMessage(g,LOG_ERROR, "Cannot open config file %s\n", configFile);
-		return 0;
-	}
-
-	for(int i = 0; i < numConfigValues; i++) {
-		int ok = 1;
-		if (g->configVariables) {
-			ok = 0;
-			for (int j=0;j<g->numConfigVariables;j++) {
-				if (!strcmp(g->configVariables[j], configFileValues[i].Variable)) {
-					ok = 1;
-					break;
-				}
-			}
-		}
-
-		if (ok) {
-			if (strlen(configFileValues[i].Description) > 0) {
-				fprintf(filep, "# %s\n", configFileValues[i].Description);
-			}
-			fprintf(filep, "%s=%s\n", configFileValues[i].Variable, configFileValues[i].Value);
-		}
-	}
-
-	fclose(filep);
-
-	return 1;
-}
-
-void GetConfigVariable(edcastGlobals *g, char_t *appName, char_t *paramName, char_t *defaultvalue, char_t *destValue, int destSize, char_t *desc) {
-	
-	if (g->configVariables) {
-		int ok = 0;
-		for (int j=0;j<g->numConfigVariables;j++) {
-			if (!strcmp(g->configVariables[j], paramName)) {
-				ok = 1;
-				break;
-			}
-		}
-		if (!ok) {
-			strcpy(destValue, defaultvalue);
-			return;
-		}
-	}
-	for(int i = 0; i < numConfigValues; i++) {
-		if(!strcmp(paramName, configFileValues[i].Variable)) {
-			strcpy(destValue, configFileValues[i].Value);
-			if (desc) {
-				strcpy(configFileValues[i].Description, desc);
-			}
-			return;
-		}
-	}
-
-	strcpy(configFileValues[numConfigValues].Variable, paramName);
-	strcpy(configFileValues[numConfigValues].Value, defaultvalue);
-	if (desc) {
-		strcpy(configFileValues[numConfigValues].Description, desc);
-	}
-
-	strcpy(destValue, configFileValues[numConfigValues].Value);
-	numConfigValues++;
-	return;
-}
-
-long GetConfigVariableLong(edcastGlobals *g, char_t *appName, char_t *paramName, long defaultvalue, char_t *desc) {
-	char_t	buf[1024] = "";
-	char_t	defaultbuf[1024] = "";
-
-	sprintf(defaultbuf, "%d", defaultvalue);
-
-	GetConfigVariable(g, appName, paramName, defaultbuf, buf, sizeof(buf), desc);
-
-	return atol(buf);
-}
-
-void PutConfigVariable(edcastGlobals *g, char_t *appName, char_t *paramName, char_t *destValue) {
-	if (g->configVariables) {
-		int ok = 0;
-		for (int j=0;j<g->numConfigVariables;j++) {
-			if (!strcmp(g->configVariables[j], paramName)) {
-				ok = 1;
-				break;
-			}
-		}
-		if (!ok) {
-			return;
-		}
-	}
-
-	for(int i = 0; i < numConfigValues; i++) {
-		if(!strcmp(paramName, configFileValues[i].Variable)) {
-			strcpy(configFileValues[i].Value, destValue);
-			return;
-		}
-	}
-
-	strcpy(configFileValues[numConfigValues].Variable, paramName);
-	strcpy(configFileValues[numConfigValues].Value, destValue);
-	strcpy(configFileValues[numConfigValues].Description, "");
-	numConfigValues++;
-	return;
-}
-
-void PutConfigVariableLong(edcastGlobals *g, char_t *appName, char_t *paramName, long value) {
-	char_t	buf[1024] = "";
-
-	sprintf(buf, "%d", value);
-
-	PutConfigVariable(g, appName, paramName, buf);
-
-	return;
 }
 
 int trimVariable(char_t *variable) {
@@ -565,6 +363,56 @@ void setForceStop(edcastGlobals *g, int forceStop) {
 	g->gForceStop = forceStop;
 }
 
+
+
+
+
+
+
+
+
+// SPMOD
+LRESULT CALLBACK foo_borbisstream_helper_wndproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	SOCKET ss;
+	int iErrorCode;
+
+	switch(msg)
+	{
+	case WM_SOCKET:
+		ss = wParam; // created socket
+		iErrorCode = WSAGETSELECTERROR(lParam);
+
+		switch (WSAGETSELECTEVENT(lParam)) 
+		{
+		case FD_CONNECT:
+			if (waitingSockets[ss]->song_title) {
+				if(iErrorCode == 0/*g->gSCSocketControl != -1*/) {
+					char* song_title = waitingSockets[ss]->song_title;
+					int sent = send(ss, song_title, strlen(song_title), 0);
+					closesocket(ss);
+				} else {
+					LogMessage(waitingSockets[ss]->g, LOG_ERROR, "Cannot connect to server");
+				}
+				delete waitingSockets[ss]->song_title;
+			} else {
+				connectToServerResponse(waitingSockets[ss]->g, iErrorCode == 0 /* return 0 when succeed */, ss);
+//console::formatter() << iErrorCode << "  " << WSAGetLastError();
+			}
+//console::formatter() << "connect test - ss : " << ss << " , gSocket : " << tmp_g_map[ss]->gSCSocket;
+			delete waitingSockets[ss];
+			waitingSockets.remove(ss);
+			break;
+		}
+
+		break;
+	default:
+		break;
+	}
+
+	return uDefWindowProc(hwnd,msg,wParam,lParam);
+}
+
 void initializeGlobals(edcastGlobals *g) {
 
 	/* Global variables....gotta love em... */
@@ -602,6 +450,9 @@ void initializeGlobals(edcastGlobals *g) {
 	g->weareconnected = 0;
 
 	g->gCurrentlyEncoding = 0;
+
+	g->gForceBreakEncoding = 0;  //  SPMOD
+
 	g->gShoutcastFlag = 0;
 	g->gIcecastFlag = 0;
 	g->destURLCallback = NULL;
@@ -622,8 +473,6 @@ void initializeGlobals(edcastGlobals *g) {
 	g->ice2songChange = false;
 	g->in_header = 0;
 
-	/* Resampler stuff */
-	g->initializedResampler = 0;
 
 	memset(g->gOggEncoderText, '\000', sizeof(g->gOggEncoderText));
 	g->gForceStop = 0;
@@ -638,7 +487,42 @@ void initializeGlobals(edcastGlobals *g) {
 	strcpy(g->gServDesc,"An audio stream.");
 
 	memset(&(g->vi), '\000', sizeof(g->vi));
+
+
+
+
+
+	// SPMOD
+	// if no helper window then create one
+	if (!mh_hwnd) {
+		WNDCLASS wc;
+		memset(&wc,0,sizeof(wc));
+		wc.style = 0;
+		wc.lpfnWndProc = foo_borbisstream_helper_wndproc;
+		wc.hInstance = core_api::get_my_instance();
+		pfc::stringcvt::string_os_from_utf8 os_class_name(pfc::string8("CLS_foo_borbisstream_") << pfc::format_hex((t_uint64)GetTickCount()));
+		wc.lpszClassName = os_class_name;
+		ATOM g_class_atom;
+		g_class_atom = RegisterClass(&wc);
+		mh_hwnd = uCreateWindowEx(0,
+									(const char *)g_class_atom,
+									"foo_vorbisstream",
+									0,
+									CW_USEDEFAULT,
+									CW_USEDEFAULT,
+									0,0,
+									core_api::get_main_window(),
+									0,
+									core_api::get_my_instance(),
+									0);
+		if(!mh_hwnd) console::formatter() << "foo_vorbisstream_" << " error: " << "couldn't create helper window";
+	}
 }
+
+
+
+
+
 
 
 int setCurrentSongTitleURL(edcastGlobals *g, char_t *song) {
@@ -815,6 +699,14 @@ int updateSongTitle(edcastGlobals *g, int forceURL) {
 							URLSong);
 				}
 
+				//for_update_song_info = true;
+				int s = g->controlChannel.DoSocketConnect(g->gServer, atoi(g->gPort), mh_hwnd);
+				waitingSocketInfo *tmpsi = new waitingSocketInfo;
+				tmpsi->g = g;
+				tmpsi->song_title = new char[strlen(contentString) + 1]; // last zero char
+				strcpy(tmpsi->song_title, contentString);
+				waitingSockets[s] = tmpsi;
+				/*
 				g->gSCSocketControl = g->controlChannel.DoSocketConnect(g->gServer, atoi(g->gPort));
 				if(g->gSCSocketControl != -1) {
 					int sent = send(g->gSCSocketControl, contentString, strlen(contentString), 0);
@@ -823,6 +715,7 @@ int updateSongTitle(edcastGlobals *g, int forceURL) {
 				else {
 					LogMessage(g,LOG_ERROR, "Cannot connect to server");
 				}
+				*/
 			}
 		}
 		return 1;
@@ -840,10 +733,12 @@ int disconnectFromServer(edcastGlobals *g) {
 	console::info("Disconnecting from server...");
 	g->weareconnected = 0;
 
-	if(g->gCurrentlyEncoding)
-	{
-		Sleep(1000);
-	}
+	//Busy waiting
+	//while(g->gCurrentlyEncoding);
+	//{
+	//	Sleep(1000);
+	//}
+	if (g->gCurrentlyEncoding) g->gForceBreakEncoding = 1;
 
 	/* Close all open sockets */
 	closesocket(g->gSCSocket);
@@ -878,21 +773,10 @@ int disconnectFromServer(edcastGlobals *g) {
  */
 int connectToServer(edcastGlobals *g) {
 	int		s_socket = 0;
-	char_t	buffer[1024] = "";
-	char_t	contentString[1024] = "";
-	char_t	brate[25] = "";
-	char_t	ypbrate[25] = "";
+
+	g->gForceBreakEncoding = 0; // SPMOD
 
 	LogMessage(g,LOG_DEBUG, "Connecting encoder %d", g->encoderNumber);
-
-	sprintf(brate, "%d", g->currentBitrate);
-
-	if(!g->gOggBitQualFlag) {
-		sprintf(ypbrate, "Quality %s", g->gOggQuality);
-	}
-	else {
-		strcpy(ypbrate, brate);
-	}
 
 	g->gSCFlag = 0;
 
@@ -903,9 +787,12 @@ int connectToServer(edcastGlobals *g) {
 
 	g->dataChannel.initWinsockLib();
 
+//console::formatter() << "?C:" << g->gShoutcastFlag << " " << g->gIcecast2Flag;
+	int s;
 	/* If we are Icecast/Icecast2, then connect to specified port */
 	if(g->gIcecastFlag || g->gIcecast2Flag) {
-		g->gSCSocket = g->dataChannel.DoSocketConnect(g->gServer, atoi(g->gPort));
+		//g->gSCSocket = g->dataChannel.DoSocketConnect(g->gServer, atoi(g->gPort));
+		s = g->dataChannel.DoSocketConnect(g->gServer, atoi(g->gPort), mh_hwnd);
 	}
 	else {
 
@@ -913,16 +800,49 @@ int connectToServer(edcastGlobals *g) {
 		 * If we are Shoutcast, then the control socket (used for password) ;
 		 * is port+1.
 		 */
-		g->gSCSocket = g->dataChannel.DoSocketConnect(g->gServer, atoi(g->gPort) + 1);
+		//g->gSCSocket = g->dataChannel.DoSocketConnect(g->gServer, atoi(g->gPort) + 1);
+		s = g->dataChannel.DoSocketConnect(g->gServer, atoi(g->gPort) + 1, mh_hwnd);
 	}
 
+	//tmp_g = g;
+	waitingSocketInfo *tmpsi = new waitingSocketInfo;
+	tmpsi->g = g;
+	tmpsi->song_title = 0;
+	waitingSockets[s] = tmpsi;
+//console::formatter() << "Socket Connect!";
+
+	return(-1);
+}
+
+int connectToServerResponse(edcastGlobals *g, bool connectSucceed, SOCKET s) {
+	char_t	buffer[1024] = "";
+	char_t	contentString[1024] = "";
+	char_t	brate[25] = "";
+	char_t	ypbrate[25] = "";
+//console::formatter() << "Continue to Connect!";
+
+	sprintf(brate, "%d", g->currentBitrate);
+
+	if(!g->gOggBitQualFlag) {
+		sprintf(ypbrate, "Quality %s", g->gOggQuality);
+	}
+	else {
+		strcpy(ypbrate, brate);
+	}
+	
 	/* Check to see if we connected okay */
-	if(g->gSCSocket == -1) {
+	if(!connectSucceed/*g->gSCSocket == -1*/) {
+//console::formatter() << "Connect failed!";
 		if(g->serverStatusCallback) {
 			g->serverStatusCallback(g, (void *) "Unable to connect to socket");
 		}
 
+		g->forcedDisconnect = true; // Ori should be done by encoder connect
+
 		return 0;
+	} else {
+		g->gSCSocket = s;
+//console::formatter() << "Connect Succeed! - socket : " << g->gSCSocket;
 	}
 
 	int pswdok = 1;
@@ -946,7 +866,7 @@ int connectToServer(edcastGlobals *g) {
 		if(g->gIcecastFlag) {
 			sprintf(contentString,
 					"SOURCE %s %s\r\ncontent-type: %s\r\nx-audiocast-name: %s\r\nx-audiocast-url: %s\r\nx-audiocast-genre: %s\r\nx-audiocast-bitrate: %s\r\nx-audiocast-public: %d\r\nx-audiocast-description: %s\r\n\r\n",
-				g->gPassword,
+					g->gPassword,
 					g->gMountpoint,
 					contentType,
 					g->gServDesc,
@@ -975,7 +895,7 @@ int connectToServer(edcastGlobals *g) {
 			if(puserAuthbase64) {
 				sprintf(contentString,
 						"SOURCE %s ICE/1.0\ncontent-type: %s\nAuthorization: Basic %s\nice-name: %s\nice-url: %s\nice-genre: %s\nice-bitrate: %s\nice-private: %d\nice-public: %d\nice-description: %s\nice-audio-info: %s\n\n",
-					g->gMountpoint,
+						g->gMountpoint,
 						contentType,
 						puserAuthbase64,
 						g->gServName,
@@ -1081,6 +1001,8 @@ int connectToServer(edcastGlobals *g) {
 		}
 	}
 
+//console::formatter() << "Auth Passed!";
+
 	/* We are connected */
 	char_t		outFilename[1024] = "";
 	char_t		outputFile[1024] = "";
@@ -1105,6 +1027,7 @@ int connectToServer(edcastGlobals *g) {
 		return 0;
 	}
 	if(g->serverStatusCallback)g->serverStatusCallback(g, (void *) "Connected");
+//console::formatter() << "Connection Fully Succeed!";
 //	setCurrentSongTitle(g, g->gSongTitle);
 	updateSongTitle(g, 0);
 	return 1;
@@ -1167,40 +1090,12 @@ int ogg_encode_dataout(edcastGlobals *g)
 	return sentbytes;
 }
 
-int initializeResampler(edcastGlobals *g, long inSampleRate, long inNCH) {
-	if(!g->initializedResampler) {
-		long	in_samplerate = inSampleRate;
-		long	out_samplerate = getCurrentSamplerate(g);
-		long	in_nch = inNCH;
-		long	out_nch = 2;
 
-		if(res_init(&(g->resampler), out_nch, out_samplerate, in_samplerate, RES_END)) {
-			LogMessage(g,LOG_ERROR, "Error initializing resampler");
-			return 0;
-		}
-
-		g->initializedResampler = 1;
-	}
-
-	return 1;
-}
-
-int ocConvertAudio(edcastGlobals *g, float *in_samples, float *out_samples, int num_in_samples, int num_out_samples) {
-	int max_num_samples = res_push_max_input(&(g->resampler), num_out_samples);
-	int ret_samples = res_push_interleaved(&(g->resampler),
-										   (SAMPLE *) out_samples,
-										   (const SAMPLE *) in_samples,
-										   max_num_samples);
-
-	return ret_samples;
-}
 
 int initializeencoder(edcastGlobals *g) {
 	int		ret = 0;
 	char_t	outFilename[1024] = "";
 	char_t	message[1024] = "";
-
-	resetResampler(g);
 
 	/* Ogg Vorbis Initialization */
 	ogg_stream_clear(&g->os);
@@ -1415,6 +1310,8 @@ int do_encoding(edcastGlobals *g, float *samples, int numsamples, int nch) {
 		if(sentbytes < 0) {
 			char buf[2046] = "";
 
+			g->gCurrentlyEncoding = 0;
+//console::formatter() << "sending failed - err code : " << (int)GetLastError() << " , socket : " << g->gSCSocket;
 			disconnectFromServer(g);
 			if(g->gForceStop) {
 				g->gForceStop = 0;
@@ -1429,253 +1326,11 @@ int do_encoding(edcastGlobals *g, float *samples, int numsamples, int nch) {
 		}
 	}
 
+	g->gForceBreakEncoding = 0;
 	g->gCurrentlyEncoding = 0;
 	return 1;
 }
 
-void config_read(edcastGlobals *g) {
-	strcpy(g->gAppName, "edcast");
-
-	char	buf[255] = "";
-	char	desc[1024] = "";
-
-	sprintf(desc, "The source URL for the broadcast. It must be in the form http://server:port/mountpoint.  For those servers without a mountpoint (Shoutcast) use http://server:port.");
-	GetConfigVariable(g, g->gAppName, "SourceURL", "http://localhost/", g->gSourceURL, sizeof(g->gSourceURL), desc);
-
-	if(g->sourceURLCallback) {
-		g->sourceURLCallback(g, (char *) g->gSourceURL);
-	}
-
-	sprintf(desc, "Destination server details (to where you are encoding).  Valid server types : Shoutcast, Icecast, Icecast2");
-	GetConfigVariable(g, g->gAppName, "ServerType", "Icecast2", g->gServerType, sizeof(g->gServerType), desc);
-//	sprintf(desc, "The server to which the stream is sent. It can be a hostname  or IP (example: www.stream.com, 192.168.1.100)");
-	GetConfigVariable(g, g->gAppName, "Server", "localhost", g->gServer, sizeof(g->gServer), NULL);
-//	sprintf(desc, "The port to which the stream is sent. Must be a number (example: 8000)");
-	GetConfigVariable(g, g->gAppName, "Port", "8000", g->gPort, sizeof(g->gPort), NULL);
-//	sprintf(desc, "This is the encoder password for the destination server (example: hackme)");
-	GetConfigVariable(g, g->gAppName, "ServerPassword", "changemenow", g->gPassword, sizeof(g->gPassword), NULL);
-//	sprintf(desc,"Used for Icecast/Icecast2 servers, The mountpoint must end in .ogg for Vorbis streams and have NO extention for MP3 streams.  If you are sending to a Shoutcast server, this MUST be blank. (example: /mp3, /myvorbis.ogg)");
-	GetConfigVariable(g, g->gAppName, "ServerMountpoint", "/stream.ogg", g->gMountpoint, sizeof(g->gMountpoint), NULL);
-//	sprintf(desc,"This setting tells the destination server to list on any available YP listings. Not all servers support this (Shoutcast does, Icecast2 doesn't) (example: 1 for YES, 0 for NO)");
-	sprintf(desc,"YP (Stream Directory) Settings");
-	g->gPubServ = GetConfigVariableLong(g, g->gAppName, "ServerPublic", 1, desc);
-//	sprintf(desc, "This is used in the YP listing, I think only Shoutcast supports this (example: #mystream)");
-	GetConfigVariable(g, g->gAppName, "ServerIRC", "", g->gServIRC, sizeof(g->gServIRC), NULL);
-//	sprintf(desc, "This is used in the YP listing, I think only Shoutcast supports this (example: myAIMaccount)");
-	GetConfigVariable(g, g->gAppName, "ServerAIM", "", g->gServAIM, sizeof(g->gServAIM), NULL);
-//	sprintf(desc, "This is used in the YP listing, I think only Shoutcast supports this (example: 332123132)");
-	GetConfigVariable(g, g->gAppName, "ServerICQ", "", g->gServICQ, sizeof(g->gServICQ), NULL);
-//	sprintf(desc, "The URL that is associated with your stream. (example: http://www.mystream.com)");
-	GetConfigVariable(g, g->gAppName, "ServerStreamURL", "http://www.oddsock.org", g->gServURL, sizeof(g->gServURL), NULL);
-//	sprintf(desc, "The Stream Name");
-	GetConfigVariable(g, g->gAppName, "ServerName", "This is my server name", g->gServName, sizeof(g->gServName), NULL);
-//	sprintf(desc, "A short description of the stream (example: Stream House on Fire!)");
-	GetConfigVariable(g, g->gAppName, "ServerDescription", "This is my server description", g->gServDesc, sizeof(g->gServDesc), NULL);
-//	sprintf(desc, "Genre of music, can be anything you want... (example: Rock)");
-	GetConfigVariable(g, g->gAppName, "ServerGenre", "Rock", g->gServGenre, sizeof(g->gServGenre), NULL);
-//	sprintf(desc,"Wether or not edcast will reconnect if it is disconnected from the destination server (example: 1 for YES, 0 for NO)");
-	sprintf(desc,"Misc encoder properties");
-	g->gAutoReconnect = GetConfigVariableLong(g, g->gAppName, "AutomaticReconnect", 1, desc);
-//	sprintf(desc, "How long it will wait (in seconds) between reconnect attempts. (example: 10)");
-	g->gReconnectSec = GetConfigVariableLong(g, g->gAppName, "AutomaticReconnectSecs", 10, NULL);
-
-
-	//	sprintf(desc, "What format to encode to. Valid values are (OGG, LAME) (example: OGG, LAME)");
-	sprintf(desc, "Output codec selection (Valid selections : MP3, OggVorbis, Ogg FLAC, AAC, AAC Plus)");
-	GetConfigVariable(g, g->gAppName, "Encode", "OggVorbis", g->gEncodeType, sizeof(g->gEncodeType), desc);
-
-	if(g->streamTypeCallback)
-			g->streamTypeCallback(g, (void *) "OggVorbis");
-
-	if(g->destURLCallback) {
-		sprintf(buf, "http://%s:%s%s", g->gServer, g->gPort, g->gMountpoint);
-		g->destURLCallback(g, (char *) buf);
-	}
-
-//	sprintf(desc, "Bitrate. This is the mean bitrate if using VBR.");
-	sprintf(desc, "General settings (non-codec related).  Note : NumberChannels = 1 for MONO, 2 for STEREO");
-	g->currentBitrate = GetConfigVariableLong(g, g->gAppName, "BitrateNominal", 128, desc);
-
-//	sprintf(desc,"Minimum Bitrate. Used only if using Bitrate Management (not recommended) or LAME VBR(example: 64, 128)");
-	g->currentBitrateMin = GetConfigVariableLong(g, g->gAppName, "BitrateMin", 128, NULL);
-
-//	sprintf(desc,"Maximum Bitrate. Used only if using Bitrate Management (not recommended) or LAME VBR (example: 64, 128)");
-	g->currentBitrateMax = GetConfigVariableLong(g, g->gAppName, "BitrateMax", 128, NULL);
-
-//	sprintf(desc, "Number of channels. Valid values are (1, 2). 1 means Mono, 2 means Stereo (example: 2,1)");
-	g->currentChannels = GetConfigVariableLong(g, g->gAppName, "NumberChannels", 2, NULL);
-
-//	sprintf(desc, "Sample rate for the stream. Valid values depend on wether using lame or vorbis. Vorbis supports odd samplerates such as 32kHz and 48kHz, but lame appears to not.feel free to experiment (example: 44100, 22050, 11025)");
-	g->currentSamplerate = GetConfigVariableLong(g, g->gAppName, "Samplerate", 44100, NULL);
-
-//	sprintf(desc, "Vorbis Quality Level. Valid values are between -1 (lowest quality) and 10 (highest).  The lower the quality the lower the output bitrate. (example: -1, 3)");
-	sprintf(desc, "Ogg Vorbis specific settings.  Note: Valid settings for BitrateQuality flag are (Quality, Bitrate Management)");
-	GetConfigVariable(g, g->gAppName, "OggQuality", "0", g->gOggQuality, sizeof(g->gOggQuality), desc);
-
-
-//	sprintf(desc,"This flag specifies if you want Vorbis Quality or Bitrate Management.  Quality is always recommended. Valid values are (Bitrate, Quality). (example: Quality, Bitrate Management)");
-	GetConfigVariable(g, g->gAppName, "OggBitrateQualityFlag", "Quality", g->gOggBitQual, sizeof(g->gOggBitQual), NULL);
-	g->gOggBitQualFlag = 0;
-	if(!strncmp(g->gOggBitQual, "Q", 1)) {
-
-		/* Quality */
-		g->gOggBitQualFlag = 0;
-	}
-
-	if(!strncmp(g->gOggBitQual, "B", 1)) {
-
-		/* Bitrate */
-		g->gOggBitQualFlag = 1;
-	}
-
-	g->gAutoCountdown = atoi(g->gAutoStartSec);
-	if(strlen(g->gMountpoint) > 0) {
-		strcpy(g->gIceFlag, "1");
-	}
-	else {
-		strcpy(g->gIceFlag, "0");
-	}
-
-	char	tempString[255] = "";
-
-	memset(tempString, '\000', sizeof(tempString));
-	ReplaceString(g->gServer, tempString, " ", "");
-	strcpy(g->gServer, tempString);
-
-	memset(tempString, '\000', sizeof(tempString));
-	ReplaceString(g->gPort, tempString, " ", "");
-	strcpy(g->gPort, tempString);
-
-
-	if(!strcmp(g->gServerType, "KasterBlaster")) {
-		g->gShoutcastFlag = 1;
-		g->gIcecastFlag = 0;
-		g->gIcecast2Flag = 0;
-	}
-
-	if(!strcmp(g->gServerType, "Shoutcast")) {
-		g->gShoutcastFlag = 1;
-		g->gIcecastFlag = 0;
-		g->gIcecast2Flag = 0;
-	}
-
-	if(!strcmp(g->gServerType, "Icecast")) {
-		g->gShoutcastFlag = 0;
-		g->gIcecastFlag = 1;
-		g->gIcecast2Flag = 0;
-	}
-
-	if(!strcmp(g->gServerType, "Icecast2")) {
-		g->gShoutcastFlag = 0;
-		g->gIcecastFlag = 0;
-		g->gIcecast2Flag = 1;
-	}
-
-	if(g->serverTypeCallback) {
-		g->serverTypeCallback(g, (void *) g->gServerType);
-	}
-
-	if(g->serverNameCallback) {
-		char	*pdata = NULL;
-		int		pdatalen = strlen(g->gServDesc) + strlen(g->gServName) + strlen(" () ") + 1;
-
-		pdata = (char *) calloc(1, pdatalen);
-		sprintf(pdata, "%s (%s)", g->gServName, g->gServDesc);
-		g->serverNameCallback(g, (void *) pdata);
-		free(pdata);
-	}
-
-	sprintf(desc, "Used for any window positions (X value)");
-	g->lastX = GetConfigVariableLong(g, g->gAppName, "lastX", 0, desc);
-	sprintf(desc, "Used for any window positions (Y value)");
-	g->lastY = GetConfigVariableLong(g, g->gAppName, "lastY", 0, desc);
-	sprintf(desc, "Used for dummy window positions (X value)");
-	g->lastDummyX = GetConfigVariableLong(g, g->gAppName, "lastDummyX", 0, desc);
-	sprintf(desc, "Used for dummy window positions (Y value)");
-	g->lastDummyY = GetConfigVariableLong(g, g->gAppName, "lastDummyY", 0, desc);
-
-	sprintf(desc, "Locked Metadata");
-	GetConfigVariable(g, g->gAppName, "LockMetadata", "", g->gManualSongTitle, sizeof(g->gManualSongTitle), desc);
-	sprintf(desc, "Flag which indicates if we are using locked metadata");
-	g->gLockSongTitle = GetConfigVariableLong(g, g->gAppName, "LockMetadataFlag", 0, desc);
-
-
-	/* Set some derived values */
-	char	localBitrate[255] = "";
-	char	mode[50] = "";
-
-	if(g->currentChannels == 1)
-		strcpy(mode, "Mono");
-	if(g->currentChannels == 2)
-		strcpy(mode, "Stereo");
-
-	if(g->serverStatusCallback) {
-		g->serverStatusCallback(g, (void *) "Disconnected");
-	}
-
-	sprintf(desc, "Number of encoders to use");
-	g->gNumEncoders = GetConfigVariableLong(g, g->gAppName, "NumEncoders", 0, desc);
-
-}
-
-void config_write(edcastGlobals *g) {
-	strcpy(g->gAppName, "edcast");
-
-	char	buf[255] = "";
-	char	desc[1024] = "";
-	char	tempString[1024] = "";
-
-	memset(tempString, '\000', sizeof(tempString));
-	ReplaceString(g->gServer, tempString, " ", "");
-	strcpy(g->gServer, tempString);
-
-	memset(tempString, '\000', sizeof(tempString));
-	ReplaceString(g->gPort, tempString, " ", "");
-	strcpy(g->gPort, tempString);
-
-	PutConfigVariable(g, g->gAppName, "SourceURL", g->gSourceURL);
-	PutConfigVariable(g, g->gAppName, "ServerType", g->gServerType);
-	PutConfigVariable(g, g->gAppName, "Server", g->gServer);
-	PutConfigVariable(g, g->gAppName, "Port", g->gPort);
-	PutConfigVariable(g, g->gAppName, "ServerMountpoint", g->gMountpoint);
-	PutConfigVariable(g, g->gAppName, "ServerPassword", g->gPassword);
-	PutConfigVariableLong(g, g->gAppName, "ServerPublic", g->gPubServ);
-	PutConfigVariable(g, g->gAppName, "ServerIRC", g->gServIRC);
-	PutConfigVariable(g, g->gAppName, "ServerAIM", g->gServAIM);
-	PutConfigVariable(g, g->gAppName, "ServerICQ", g->gServICQ);
-	PutConfigVariable(g, g->gAppName, "ServerStreamURL", g->gServURL);
-	PutConfigVariable(g, g->gAppName, "ServerDescription", g->gServDesc);
-	PutConfigVariable(g, g->gAppName, "ServerName", g->gServName);
-	PutConfigVariable(g, g->gAppName, "ServerGenre", g->gServGenre);
-	PutConfigVariableLong(g, g->gAppName, "AutomaticReconnect", g->gAutoReconnect);
-	PutConfigVariableLong(g, g->gAppName, "AutomaticReconnectSecs", g->gReconnectSec);
-	PutConfigVariable(g, g->gAppName, "Encode", g->gEncodeType);
-
-	PutConfigVariableLong(g, g->gAppName, "BitrateNominal", g->currentBitrate);
-	PutConfigVariableLong(g, g->gAppName, "BitrateMin", g->currentBitrateMin);
-	PutConfigVariableLong(g, g->gAppName, "BitrateMax", g->currentBitrateMax);
-	PutConfigVariableLong(g, g->gAppName, "NumberChannels", g->currentChannels);
-	PutConfigVariableLong(g, g->gAppName, "Samplerate", g->currentSamplerate);
-	PutConfigVariable(g, g->gAppName, "OggQuality", g->gOggQuality);
-	if(g->gOggBitQualFlag) {
-		strcpy(g->gOggBitQual, "Bitrate");
-	}
-	else {
-		strcpy(g->gOggBitQual, "Quality");
-	}
-
-	PutConfigVariable(g, g->gAppName, "OggBitrateQualityFlag", g->gOggBitQual);
-
-	PutConfigVariableLong(g, g->gAppName, "lastX", g->lastX);
-	PutConfigVariableLong(g, g->gAppName, "lastY", g->lastY);
-	PutConfigVariableLong(g, g->gAppName, "lastDummyX", g->lastDummyX);
-	PutConfigVariableLong(g, g->gAppName, "lastDummyY", g->lastDummyY);
-
-	PutConfigVariable(g, g->gAppName, "LockMetadata", g->gManualSongTitle);
-	PutConfigVariableLong(g, g->gAppName, "LockMetadataFlag", g->gLockSongTitle);
-
-	PutConfigVariableLong(g, g->gAppName, "NumEncoders", g->gNumEncoders);
-}
 
 /*
  =======================================================================================================================
@@ -1684,12 +1339,11 @@ void config_write(edcastGlobals *g) {
  */
 int handle_output(edcastGlobals *g, float *samples, int nsamples, int nchannels, int in_samplerate) {
 	int			ret = 1;
-	static int	current_insamplerate = 0;
-	static int	current_nchannels = 0;
+	int	current_insamplerate = in_samplerate;
+	int	current_nchannels = nchannels;
 	long		out_samplerate = 0;
 	long		out_nch = 0;
 	int			samplecount = 0;
-	float		*samplePtr = 0;
 	int			in_nch = nchannels;
 
 	nchannels = 2;
@@ -1706,20 +1360,7 @@ int handle_output(edcastGlobals *g, float *samples, int nsamples, int nchannels,
 		out_samplerate = getCurrentSamplerate(g);
 		out_nch = getCurrentChannels(g);
 
-		if(current_insamplerate != in_samplerate) {
-			resetResampler(g);
-			current_insamplerate = in_samplerate;
-		}
-
-		if(current_nchannels != nchannels) {
-			resetResampler(g);
-			current_nchannels = nchannels;
-		}
-
-		samples_rechannel = new float[sizeof(float) * nsamples * nchannels];
-		memset(samples_rechannel, '\000', sizeof(float) * nsamples * nchannels);
-
-		samplePtr = samples;
+		pfc::array_t<float> samples_rechannel; samples_rechannel.set_size(nsamples * nchannels); samples_rechannel.fill_null();
 
 		int make_mono = 0;
 		int make_stereo = 0;
@@ -1761,99 +1402,15 @@ int handle_output(edcastGlobals *g, float *samples, int nsamples, int nchannels,
 		}
 
 		LogMessage(g,LOG_DEBUG, "In samplerate = %d, Out = %d", in_samplerate, out_samplerate);
-		samplePtr = samples_rechannel;
-		if(in_samplerate != out_samplerate) {
-			nchannels = 2;
 
-			/* Call the resampler */
-			LogMessage(g,LOG_DEBUG, "Initializing resampler");
+		LogMessage(g,LOG_DEBUG, "do_encoding start");
+		ret = do_encoding(g, samples_rechannel.get_ptr(), nsamples, nchannels);
+		LogMessage(g,LOG_DEBUG, "do_encoding end (%d)", ret);
 
-			initializeResampler(g, in_samplerate, nchannels);
-			
-			int buf_samples = (((hyper)nsamples * out_samplerate) / in_samplerate);
-			samples_resampled = (float *) malloc(sizeof(float) * buf_samples * nchannels);
-			memset(samples_resampled, '\000', sizeof(float) * buf_samples * nchannels);
-
-			LogMessage(g,LOG_DEBUG, "calling ocConvertAudio");
-			long	out_samples = ocConvertAudio(g,
-												 (float *) samplePtr,
-												 (float *) samples_resampled,
-												 nsamples,
-												 buf_samples);
-
-			samples_resampled_int = (short *) malloc(sizeof(short) * out_samples * nchannels);
-			memset(samples_resampled_int, '\000', sizeof(short) * out_samples * nchannels);
-
-			LogMessage(g,LOG_DEBUG, "ready to do encoding");
-
-			if(out_samples > 0) {
-				samplecount = 0;
-
-				/* Here is the call to actually do the encoding->... */
-				LogMessage(g,LOG_DEBUG, "do_encoding start");
-				ret = do_encoding(g, (float *) (samples_resampled), out_samples, out_nch);
-				LogMessage(g,LOG_DEBUG, "do_encoding end (%d)", ret);
-			}
-
-			if(samples_resampled_int) {
-				free(samples_resampled_int);
-				samples_resampled_int = NULL;
-			}
-
-			if(samples_resampled) {
-				free(samples_resampled);
-				samples_resampled = NULL;
-			}
-		}
-		else {
-			LogMessage(g,LOG_DEBUG, "do_encoding start");
-			ret = do_encoding(g, (float *) samples_rechannel, nsamples, nchannels);
-			LogMessage(g,LOG_DEBUG, "do_encoding end (%d)", ret);
-		}
-
-		if(samples_rechannel) {
-			free(samples_rechannel);
-			samples_rechannel = NULL;
-		}
 		LogMessage(g,LOG_DEBUG, "%d Calling handle output - Ret = %d", g->encoderNumber, ret);
 	}
 
 	return ret;
-}
-
-void addUISettings(edcastGlobals *g) {
-	addConfigVariable(g, "AutomaticReconnect");
-	addConfigVariable(g, "AutomaticReconnectSecs");
-	addConfigVariable(g, "lastX");
-	addConfigVariable(g, "lastY");
-	addConfigVariable(g, "lastDummyX");
-	addConfigVariable(g, "lastDummyY");
-	addConfigVariable(g, "NumEncoders");
-}
-
-void addBasicEncoderSettings(edcastGlobals *g) {
-    addConfigVariable(g, "ServerType");
-    addConfigVariable(g, "Server");
-    addConfigVariable(g, "Port");
-    addConfigVariable(g, "ServerMountpoint");
-    addConfigVariable(g, "ServerPassword");
-    addConfigVariable(g, "ServerPublic");
-    addConfigVariable(g, "ServerIRC");
-    addConfigVariable(g, "ServerAIM");
-    addConfigVariable(g, "ServerICQ");
-    addConfigVariable(g, "ServerStreamURL");
-    addConfigVariable(g, "ServerDescription");
-    addConfigVariable(g, "ServerName");
-    addConfigVariable(g, "ServerGenre");
-    addConfigVariable(g, "AutomaticReconnectSecs");
-    addConfigVariable(g, "Encode");
-    addConfigVariable(g, "BitrateNominal");
-    addConfigVariable(g, "BitrateMin");
-    addConfigVariable(g, "BitrateMax");
-    addConfigVariable(g, "NumberChannels");
-    addConfigVariable(g, "Samplerate");
-    addConfigVariable(g, "OggQuality");
-    addConfigVariable(g, "OggBitrateQualityFlag");
 }
 
 void LogMessage(edcastGlobals *g, int type, char *source, int line, char *fmt, ...) {

@@ -137,7 +137,7 @@ SOCKET CMySocket::DoSocketAccept(SOCKET s)
 //   hostname - host to connect() to.
 //   portnum - port number for connect().
 //
-SOCKET CMySocket::DoSocketConnect(char *hostname, unsigned short portnum)
+SOCKET CMySocket::DoSocketConnect(char *hostname, unsigned short portnum, HWND msg_hwnd)
 {
 	struct sockaddr_in sa;
 	struct hostent     *hp;
@@ -162,11 +162,23 @@ SOCKET CMySocket::DoSocketConnect(char *hostname, unsigned short portnum)
 	if ((s= socket(hp->h_addrtype,SOCK_STREAM,0)) < 0)     /* get socket */
 		return(-1);
 	
-	int optval = 10000;
+
+
+	WSAAsyncSelect(s, msg_hwnd, WM_SOCKET, FD_CONNECT); // SPMOD
+
+
+
+
+	int optval = 5000;//10000;  // SPMOD
 	setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (const char *)&optval, sizeof(optval)); 
 	setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char *)&optval, sizeof(optval)); 
 
-	if (connect(s,(struct sockaddr *)&sa,sizeof sa) < 0) { /* connect */
+	connect(s,(struct sockaddr *)&sa,sizeof sa);
+	//return(-1);
+	return s;
+	// Since it is async connect, we must failed here
+	/*
+	if (connect(s,(struct sockaddr *)&sa,sizeof sa) < 0) { // connect
 #ifdef WIN32
 		long err = WSAGetLastError();
 #endif
@@ -174,6 +186,7 @@ SOCKET CMySocket::DoSocketConnect(char *hostname, unsigned short portnum)
 		return(-1);
 	}
 	return(s);
+	*/
 }
 
 /////////////////////////////////////////////////////////////////////////////
